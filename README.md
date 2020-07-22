@@ -10,7 +10,7 @@ It currently supports a very small subset of C:
 - Flow control (Ifs, Loops)
 - Integer types only (The return of void functions is also int for now)
 
-The code quality is horrible, this is just about learning about how to write a compiler.
+The code quality is horrible, this is just about learning how compilers are written.
 
 ## LaserLang
 There is also an option to compile to LaserLang, the option is a boolean variable in the main function.
