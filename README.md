@@ -21,3 +21,10 @@ int putint(int i);
 int getint();
 ```
 * Note: You must declare the IO functions for them to be included in the generated code.
+
+## Usage
+Compile the source, and then
+```shell
+java -jar CCompiler.jar filename.c
+```
+Use the `-d` flag for debug output.
