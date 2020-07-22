@@ -1,5 +1,5 @@
 # CCompiler
-C Compiler to Linux x64 assembly and to [LaserLang](https://github.com/Quintec/LaserLang)
+C Compiler to Linux x64 assembly and to [LaserLang](https://github.com/Quintec/LaserLang) written in Java
 
 ## About
 This is a simple c compiler written in Java. Based on the blog series [Writing a C Compiler](https://norasandler.com/2017/11/29/Write-a-Compiler.html) by Nora Sandler.
