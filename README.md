@@ -1,5 +1,5 @@
 # CCompiler
-C Compiler to Linux x64 assembly and to [LaserLang](https://github.com/Quintec/LaserLang) written in Java
+C Compiler to Linux x64 assembly and to [LaserLang](https://github.com/Quintec/LaserLang) written in Java.
 
 ## About
 This is a simple c compiler written in Java. Based on the blog series [Writing a C Compiler](https://norasandler.com/2017/11/29/Write-a-Compiler.html) by Nora Sandler.
@@ -10,10 +10,10 @@ It currently supports a very small subset of C:
 - Flow control (Ifs, Loops)
 - Integer types only (The return of void functions is also int for now)
 
-The code quality is horrible, this is just about learning how compilers are written.
+The code quality is not the best, this is an exercise about learning how compilers work.
 
 ## LaserLang
-There is also an option to compile to LaserLang, the option is a boolean variable in the main function.
+There is also an option to compile to the esoteric language LaserLang, the option is a boolean variable in the main function.
 When compiling for LaserLang, you can use the following functions for I/O:
 ```java
 int putchar(int chr);
