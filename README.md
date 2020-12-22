@@ -13,7 +13,7 @@ It currently supports a very small subset of C:
 The code quality is not the best, this is an exercise about learning how compilers work.
 
 ## LaserLang
-There is also an option to compile to the esoteric language LaserLang, the option is a boolean variable in the main function.
+There is also an option to compile to the esoteric language [LaserLang](https://github.com/Quintec/LaserLang), the option is a boolean variable in the main function.
 When compiling for LaserLang, you can use the following functions for I/O:
 ```java
 int putchar(int chr);
