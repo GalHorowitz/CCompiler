@@ -9,32 +9,9 @@ import lasercompiler.codegen.CodeGenerator;
 import lasercompiler.codegen.ConstExpressionEvaluator;
 import lasercompiler.codegen.GenerationContext;
 import lasercompiler.codegen.GenerationException;
-import lasercompiler.parser.nodes.BlockItem;
-import lasercompiler.parser.nodes.Declaration;
-import lasercompiler.parser.nodes.Expression;
-import lasercompiler.parser.nodes.ExpressionAssignment;
-import lasercompiler.parser.nodes.ExpressionBinaryOperation;
+import lasercompiler.parser.nodes.*;
 import lasercompiler.parser.nodes.ExpressionBinaryOperation.BinaryOperator;
-import lasercompiler.parser.nodes.ExpressionConditional;
-import lasercompiler.parser.nodes.ExpressionConstantInteger;
-import lasercompiler.parser.nodes.ExpressionFunctionCall;
-import lasercompiler.parser.nodes.ExpressionPostfixOperation;
-import lasercompiler.parser.nodes.ExpressionPrefixOperation;
-import lasercompiler.parser.nodes.ExpressionUnaryOperation;
 import lasercompiler.parser.nodes.ExpressionUnaryOperation.UnaryOperator;
-import lasercompiler.parser.nodes.ExpressionVariable;
-import lasercompiler.parser.nodes.Function;
-import lasercompiler.parser.nodes.Program;
-import lasercompiler.parser.nodes.Statement;
-import lasercompiler.parser.nodes.StatementBreak;
-import lasercompiler.parser.nodes.StatementCompound;
-import lasercompiler.parser.nodes.StatementContinue;
-import lasercompiler.parser.nodes.StatementDo;
-import lasercompiler.parser.nodes.StatementExpression;
-import lasercompiler.parser.nodes.StatementFor;
-import lasercompiler.parser.nodes.StatementIf;
-import lasercompiler.parser.nodes.StatementReturn;
-import lasercompiler.parser.nodes.StatementWhile;
 
 public class CodeGeneratorLaserLang implements CodeGenerator {
 
@@ -141,20 +118,31 @@ public class CodeGeneratorLaserLang implements CodeGenerator {
 		
 		int varOffset = 0;
 		for(Declaration decl : globalVars) {
-			globalVarsTable.put(decl.getVariable(), varOffset);
-			if(decl.hasInitializer()) {
-				Expression initializer = ConstExpressionEvaluator.evalExpression(decl.getInitializer());
-				if(!(initializer instanceof ExpressionConstantInteger)) {
-					throw new GenerationException("Failed to generate global variable("+decl.getVariable()+"), initial value must be constant");
+			globalVarsTable.put(decl.getIdentifier(), varOffset);
+
+			if(decl instanceof DeclarationArray) {
+				int arrSize = ((DeclarationArray) decl).getSize();
+				for(int i = 0; i < arrSize; i++){
+					entryCode.append("0");
 				}
-				ExpressionConstantInteger eci = (ExpressionConstantInteger) initializer;
-				entryCode.append("'");
-				entryCode.append(eci.getValue());
-				entryCode.append("'");
-			}else {
-				entryCode.append("0");
+				varOffset += arrSize;
+			} else if(decl instanceof DeclarationVariable) {
+				if (decl.hasInitializer()) {
+					Expression initializer = ConstExpressionEvaluator.evalExpression(decl.getInitializer());
+					if (!(initializer instanceof ExpressionConstantInteger)) {
+						throw new GenerationException("Failed to generate global variable(" + decl.getIdentifier() + "), initial value must be constant");
+					}
+					ExpressionConstantInteger eci = (ExpressionConstantInteger) initializer;
+					entryCode.append("'");
+					entryCode.append(eci.getValue());
+					entryCode.append("'");
+				} else {
+					entryCode.append("0");
+				}
+				varOffset++;
+			} else {
+				throw new IllegalStateException();
 			}
-			varOffset++;
 		}
 		
 		entryCode.append(STACK_DOWN+INPUT_STACK+STACK_DOWN+STACK_DOWN+STACK_DOWN);
@@ -378,20 +366,30 @@ public class CodeGeneratorLaserLang implements CodeGenerator {
 		
 		for (BlockItem s : items) {
 			if(s instanceof Declaration) {
-				Declaration dec = (Declaration) s;
-				if(dec.hasInitializer()) {
-					code.append(STACK_UP);
-					code.append(STACK_UP);
-					code.append(generateExpression(dec.getInitializer(), contextData.subContext()));
-					code.append(SWAP_DOWN);
-					code.append(STACK_DOWN);
-					code.append(SWAP_DOWN);
-					code.append(STACK_DOWN);
-				}else {
-					code.append("0");
+				if(s instanceof DeclarationArray) {
+					DeclarationArray da = (DeclarationArray) s;
+					for(int i = 0; i < da.getSize(); i++) {
+						code.append("0");
+					}
+					contextData.addArray(da.getIdentifier(), da.getSize());
+				} else if(s instanceof DeclarationVariable) {
+					Declaration dec = (Declaration) s;
+					if (dec.hasInitializer()) {
+						code.append(STACK_UP);
+						code.append(STACK_UP);
+						code.append(generateExpression(dec.getInitializer(), contextData.subContext()));
+						code.append(SWAP_DOWN);
+						code.append(STACK_DOWN);
+						code.append(SWAP_DOWN);
+						code.append(STACK_DOWN);
+					} else {
+						code.append("0");
+					}
+
+					contextData.addVariable(dec.getIdentifier());
+				} else {
+					throw new IllegalStateException();
 				}
-				
-				contextData.addVariable(dec.getVariable());
 			}else if(s instanceof Statement){
 				code.append(generateStatement((Statement) s, contextData.subContext()));
 			}else {
@@ -571,10 +569,13 @@ public class CodeGeneratorLaserLang implements CodeGenerator {
 			code.append(generateExpression(as.getValue(), contextData));
 			code.append(REPLICATE);
 
-			if(contextData.hasVariable(as.getVariable())) {
+			if(as.getLValue() instanceof ExpressionArraySubscript) {
+				throw new GenerationException("Arrays not yet implemented");
+			}
+			if(contextData.hasVariable(as.getLValue().getIdentifier())) {
 				code.append(STACK_DOWN+STACK_DOWN);
 				code.append(ROTATE_UP);
-				for(int i = 0; i < contextData.getVariableOffset(as.getVariable()); i++) {
+				for(int i = 0; i < contextData.getVariableOffset(as.getLValue().getIdentifier()); i++) {
 					code.append(ROTATE_UP);
 				}
 				code.append(POP);
@@ -584,7 +585,7 @@ public class CodeGeneratorLaserLang implements CodeGenerator {
 				code.append(STACK_DOWN);
 				code.append(SWAP_DOWN);
 				code.append(STACK_DOWN);
-				for(int i = 0; i < contextData.getVariableOffset(as.getVariable()); i++) {
+				for(int i = 0; i < contextData.getVariableOffset(as.getLValue().getIdentifier()); i++) {
 					code.append(ROTATE_DOWN);
 				}
 				code.append(ROTATE_DOWN);
@@ -593,7 +594,7 @@ public class CodeGeneratorLaserLang implements CodeGenerator {
 			} else {
 				code.append(STACK_UP+STACK_UP);
 				code.append(ROTATE_UP);
-				for(int i = 0; i < globalVarsTable.get(as.getVariable()); i++) {
+				for(int i = 0; i < globalVarsTable.get(as.getLValue().getIdentifier()); i++) {
 					code.append(ROTATE_UP);
 				}
 				code.append(POP);
@@ -603,7 +604,7 @@ public class CodeGeneratorLaserLang implements CodeGenerator {
 				code.append(STACK_UP);
 				code.append(SWAP_UP);
 				code.append(STACK_UP);
-				for(int i = 0; i < globalVarsTable.get(as.getVariable()); i++) {
+				for(int i = 0; i < globalVarsTable.get(as.getLValue().getIdentifier()); i++) {
 					code.append(ROTATE_DOWN);
 				}
 				code.append(ROTATE_DOWN);
@@ -670,30 +671,30 @@ public class CodeGeneratorLaserLang implements CodeGenerator {
 			}
 		} else if(exp instanceof ExpressionVariable) {
 			ExpressionVariable av = (ExpressionVariable) exp;
-			if(contextData.hasVariable(av.getVariable())) {
-				code.append(STACK_DOWN+STACK_DOWN);
+			if (contextData.hasVariable(av.getIdentifier())) {
+				code.append(STACK_DOWN + STACK_DOWN);
 				code.append(ROTATE_UP);
-				for(int i = 0; i < contextData.getVariableOffset(av.getVariable()); i++) {
+				for (int i = 0; i < contextData.getVariableOffset(av.getIdentifier()); i++) {
 					code.append(ROTATE_UP);
 				}
 				code.append(REPLICATE);
 				code.append(SWAP_UP);
-				for(int i = 0; i < contextData.getVariableOffset(av.getVariable()); i++) {
+				for (int i = 0; i < contextData.getVariableOffset(av.getIdentifier()); i++) {
 					code.append(ROTATE_DOWN);
 				}
 				code.append(ROTATE_DOWN);
 				code.append(STACK_UP);
 				code.append(SWAP_UP);
 				code.append(STACK_UP);
-			}else {
-				code.append(STACK_UP+STACK_UP);
+			} else {
+				code.append(STACK_UP + STACK_UP);
 				code.append(ROTATE_UP);
-				for(int i = 0; i < globalVarsTable.get(av.getVariable()); i++) {
+				for (int i = 0; i < globalVarsTable.get(av.getIdentifier()); i++) {
 					code.append(ROTATE_UP);
 				}
 				code.append(REPLICATE);
 				code.append(SWAP_DOWN);
-				for(int i = 0; i < globalVarsTable.get(av.getVariable()); i++) {
+				for (int i = 0; i < globalVarsTable.get(av.getIdentifier()); i++) {
 					code.append(ROTATE_DOWN);
 				}
 				code.append(ROTATE_DOWN);
@@ -701,6 +702,40 @@ public class CodeGeneratorLaserLang implements CodeGenerator {
 				code.append(SWAP_DOWN);
 				code.append(STACK_DOWN);
 			}
+		} else if(exp instanceof ExpressionArraySubscript) {
+			ExpressionArraySubscript eas = (ExpressionArraySubscript) exp;
+			throw new GenerationException("Arrays not implemented yet");
+//			if (contextData.hasVariable(eas.getIdentifier())) {
+//				code.append(STACK_DOWN + STACK_DOWN);
+//				code.append(ROTATE_UP);
+//				for (int i = 0; i < contextData.getVariableOffset(eas.getIdentifier()); i++) {
+//					code.append(ROTATE_UP);
+//				}
+//				code.append(REPLICATE);
+//				code.append(SWAP_UP);
+//				for (int i = 0; i < contextData.getVariableOffset(eas.getIdentifier()); i++) {
+//					code.append(ROTATE_DOWN);
+//				}
+//				code.append(ROTATE_DOWN);
+//				code.append(STACK_UP);
+//				code.append(SWAP_UP);
+//				code.append(STACK_UP);
+//			} else {
+//				code.append(STACK_UP + STACK_UP);
+//				code.append(ROTATE_UP);
+//				for (int i = 0; i < globalVarsTable.get(av.getIdentifier()); i++) {
+//					code.append(ROTATE_UP);
+//				}
+//				code.append(REPLICATE);
+//				code.append(SWAP_DOWN);
+//				for (int i = 0; i < globalVarsTable.get(av.getIdentifier()); i++) {
+//					code.append(ROTATE_DOWN);
+//				}
+//				code.append(ROTATE_DOWN);
+//				code.append(STACK_DOWN);
+//				code.append(SWAP_DOWN);
+//				code.append(STACK_DOWN);
+//			}
 		} else if (exp instanceof ExpressionPrefixOperation) {
 			ExpressionPrefixOperation prefixOp = (ExpressionPrefixOperation) exp;
 		
@@ -708,17 +743,17 @@ public class CodeGeneratorLaserLang implements CodeGenerator {
 			case Decrement:
 				code.append(
 						generateExpression(
-								new ExpressionAssignment(prefixOp.getVariableExpression().getVariable(),
+								new ExpressionAssignment(prefixOp.getLValue(),
 										new ExpressionBinaryOperation(BinaryOperator.Subtraction,
-												prefixOp.getVariableExpression(), new ExpressionConstantInteger(1))),
+												prefixOp.getLValue(), new ExpressionConstantInteger(1))),
 								contextData));
 				break;
 			case Increment:
 				code.append(
 						generateExpression(
-								new ExpressionAssignment(prefixOp.getVariableExpression().getVariable(),
+								new ExpressionAssignment(prefixOp.getLValue(),
 										new ExpressionBinaryOperation(BinaryOperator.Addition,
-												prefixOp.getVariableExpression(), new ExpressionConstantInteger(1))),
+												prefixOp.getLValue(), new ExpressionConstantInteger(1))),
 								contextData));
 				break;
 			default:
@@ -727,23 +762,23 @@ public class CodeGeneratorLaserLang implements CodeGenerator {
 		} else if (exp instanceof ExpressionPostfixOperation) {
 			ExpressionPostfixOperation postfixOp = (ExpressionPostfixOperation) exp;
 			
-			code.append(generateExpression(postfixOp.getVariableExpression(), contextData));
+			code.append(generateExpression(postfixOp.getLValue(), contextData));
 			
 			switch(postfixOp.getOperator()) {
 			case Decrement:
 				code.append(
 						generateExpression(
-								new ExpressionAssignment(postfixOp.getVariableExpression().getVariable(),
+								new ExpressionAssignment(postfixOp.getLValue(),
 										new ExpressionBinaryOperation(BinaryOperator.Subtraction,
-												postfixOp.getVariableExpression(), new ExpressionConstantInteger(1))),
+												postfixOp.getLValue(), new ExpressionConstantInteger(1))),
 								contextData));
 				break;
 			case Increment:
 				code.append(
 						generateExpression(
-								new ExpressionAssignment(postfixOp.getVariableExpression().getVariable(),
+								new ExpressionAssignment(postfixOp.getLValue(),
 										new ExpressionBinaryOperation(BinaryOperator.Addition,
-												postfixOp.getVariableExpression(), new ExpressionConstantInteger(1))),
+												postfixOp.getLValue(), new ExpressionConstantInteger(1))),
 								contextData));
 				break;
 			default:

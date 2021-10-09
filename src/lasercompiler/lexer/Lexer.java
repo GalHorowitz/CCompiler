@@ -5,68 +5,13 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import lasercompiler.lexer.tokens.Token;
-import lasercompiler.lexer.tokens.TokenAssignment;
-import lasercompiler.lexer.tokens.TokenAssignmentAdd;
-import lasercompiler.lexer.tokens.TokenAssignmentBitwiseAnd;
-import lasercompiler.lexer.tokens.TokenAssignmentBitwiseOr;
-import lasercompiler.lexer.tokens.TokenAssignmentBitwiseXor;
-import lasercompiler.lexer.tokens.TokenAssignmentDivide;
-import lasercompiler.lexer.tokens.TokenAssignmentModulo;
-import lasercompiler.lexer.tokens.TokenAssignmentMultiply;
-import lasercompiler.lexer.tokens.TokenAssignmentShiftLeft;
-import lasercompiler.lexer.tokens.TokenAssignmentShiftRight;
-import lasercompiler.lexer.tokens.TokenAssignmentSubtract;
-import lasercompiler.lexer.tokens.TokenBitwiseAnd;
-import lasercompiler.lexer.tokens.TokenBitwiseOr;
-import lasercompiler.lexer.tokens.TokenBitwiseXor;
-import lasercompiler.lexer.tokens.TokenBraceClose;
-import lasercompiler.lexer.tokens.TokenBraceOpen;
-import lasercompiler.lexer.tokens.TokenColon;
-import lasercompiler.lexer.tokens.TokenComma;
-import lasercompiler.lexer.tokens.TokenComment;
-import lasercompiler.lexer.tokens.TokenComplement;
-import lasercompiler.lexer.tokens.TokenDecrement;
-import lasercompiler.lexer.tokens.TokenDivision;
-import lasercompiler.lexer.tokens.TokenEqual;
-import lasercompiler.lexer.tokens.TokenGreaterThan;
-import lasercompiler.lexer.tokens.TokenGreaterThanEq;
-import lasercompiler.lexer.tokens.TokenIdentifier;
-import lasercompiler.lexer.tokens.TokenIncrement;
-import lasercompiler.lexer.tokens.TokenKeywordBreak;
-import lasercompiler.lexer.tokens.TokenKeywordContinue;
-import lasercompiler.lexer.tokens.TokenKeywordDo;
-import lasercompiler.lexer.tokens.TokenKeywordElse;
-import lasercompiler.lexer.tokens.TokenKeywordFor;
-import lasercompiler.lexer.tokens.TokenKeywordIf;
-import lasercompiler.lexer.tokens.TokenKeywordReturn;
-import lasercompiler.lexer.tokens.TokenKeywordWhile;
-import lasercompiler.lexer.tokens.TokenLessThan;
-import lasercompiler.lexer.tokens.TokenLessThanEq;
-import lasercompiler.lexer.tokens.TokenLiteralInteger;
-import lasercompiler.lexer.tokens.TokenLogicalAnd;
-import lasercompiler.lexer.tokens.TokenLogicalNegation;
-import lasercompiler.lexer.tokens.TokenLogicalOr;
-import lasercompiler.lexer.tokens.TokenMinus;
-import lasercompiler.lexer.tokens.TokenModulo;
-import lasercompiler.lexer.tokens.TokenMultiCommentClose;
-import lasercompiler.lexer.tokens.TokenMultiCommentOpen;
-import lasercompiler.lexer.tokens.TokenMultiplication;
-import lasercompiler.lexer.tokens.TokenNotEqual;
-import lasercompiler.lexer.tokens.TokenParenClose;
-import lasercompiler.lexer.tokens.TokenParenOpen;
-import lasercompiler.lexer.tokens.TokenPlus;
-import lasercompiler.lexer.tokens.TokenQuestionMark;
-import lasercompiler.lexer.tokens.TokenSemicolon;
-import lasercompiler.lexer.tokens.TokenShiftLeft;
-import lasercompiler.lexer.tokens.TokenShiftRight;
-import lasercompiler.lexer.tokens.TokenTypeInteger;
+import lasercompiler.lexer.tokens.*;
 
 public class Lexer {
 
 	private static Pattern whitespacePattern = Pattern.compile("\\s+");
 
-	public static List<Token> lex(String data) throws LexException {
+	public static TokenStream lex(String data) throws LexException {
 		List<Token> tokens = new ArrayList<Token>();
 
 		int dataPoint = 0;
@@ -258,6 +203,12 @@ public class Lexer {
 			} else if (TokenParenOpen.getPattern().matcher(currentData).lookingAt()) {
 				tokens.add(new TokenParenOpen());
 
+			} else if (TokenBracketClose.getPattern().matcher(currentData).lookingAt()) {
+				tokens.add(new TokenBracketClose());
+
+			} else if (TokenBracketOpen.getPattern().matcher(currentData).lookingAt()) {
+				tokens.add(new TokenBracketOpen());
+
 			} else if (TokenKeywordReturn.getPattern().matcher(currentData).lookingAt()) {
 				tokens.add(new TokenKeywordReturn());
 				dataPoint += 6 - 1;
@@ -311,7 +262,7 @@ public class Lexer {
 			throw new LexException("Failed to lex file, reached EOF before multi-line comment was terminated");
 		}
 
-		return tokens;
+		return new TokenStream(tokens);
 	}
 
 }

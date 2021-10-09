@@ -11,6 +11,7 @@ public class ValidationContext {
 
 	private List<String> scopedVariables;
 	private List<String> availableVariables;
+	private List<String> availableArrays;
 	private Map<String, Function> functions;
 	private List<String> globalVariables;
 	private boolean insideLoop;
@@ -18,6 +19,7 @@ public class ValidationContext {
 	public ValidationContext(Map<String, Function> functions, List<String> globalVariables) {
 		this.scopedVariables = new ArrayList<String>();
 		this.availableVariables = new ArrayList<String>();
+		this.availableArrays = new ArrayList<String>();
 		this.functions = functions;
 		this.globalVariables = globalVariables;
 		this.insideLoop = false;
@@ -26,6 +28,7 @@ public class ValidationContext {
 	public ValidationContext(ValidationContext other) {
 		this.scopedVariables = new ArrayList<String>();
 		this.availableVariables = new ArrayList<String>(other.availableVariables);
+		this.availableArrays = new ArrayList<String>(other.availableArrays);
 		this.functions = new HashMap<String, Function>(other.functions);
 		this.globalVariables = new ArrayList<String>(other.globalVariables);
 		this.insideLoop = other.insideLoop;
@@ -38,14 +41,23 @@ public class ValidationContext {
 	public void setInsideLoop(boolean insideLoop) {
 		this.insideLoop = insideLoop;
 	}
-	
+
 	public void addVariable(String var) {
 		this.scopedVariables.add(var);
 		this.availableVariables.add(var);
 	}
-	
+
+	public void addArray(String var) {
+		this.scopedVariables.add(var);
+		this.availableArrays.add(var);
+	}
+
 	public boolean hasVariable(String var) {
 		return this.availableVariables.contains(var);
+	}
+
+	public boolean hasArray(String var) {
+		return this.availableArrays.contains(var);
 	}
 	
 	public boolean canDeclareVariable(String var) {

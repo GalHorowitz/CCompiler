@@ -11,25 +11,25 @@ public class ExpressionPostfixOperation extends Expression {
 		}
 	}
 
-	private final ExpressionVariable variable;
+	private final ExpressionLValue lvalue;
 	private final PostfixOperator operator;
 
-	public ExpressionPostfixOperation(PostfixOperator operator, ExpressionVariable variable) {
+	public ExpressionPostfixOperation(PostfixOperator operator, ExpressionLValue lvalue) {
 		this.operator = operator;
-		this.variable = variable;
+		this.lvalue = lvalue;
 	}
 
 	public PostfixOperator getOperator() {
 		return operator;
 	}
 
-	public ExpressionVariable getVariableExpression() {
-		return variable;
+	public ExpressionLValue getLValue() {
+		return lvalue;
 	}
 
 	@Override
 	public String toString() {
-		return "(" + variable.toString() + ")" + operator.op;
+		return "(" + lvalue.toString() + ")" + operator.op;
 	}
 
 }

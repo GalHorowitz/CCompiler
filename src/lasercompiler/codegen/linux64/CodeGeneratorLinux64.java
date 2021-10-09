@@ -6,31 +6,8 @@ import lasercompiler.codegen.CodeGenerator;
 import lasercompiler.codegen.ConstExpressionEvaluator;
 import lasercompiler.codegen.GenerationContext;
 import lasercompiler.codegen.GenerationException;
-import lasercompiler.parser.nodes.BlockItem;
-import lasercompiler.parser.nodes.Declaration;
-import lasercompiler.parser.nodes.Expression;
-import lasercompiler.parser.nodes.ExpressionAssignment;
-import lasercompiler.parser.nodes.ExpressionBinaryOperation;
+import lasercompiler.parser.nodes.*;
 import lasercompiler.parser.nodes.ExpressionBinaryOperation.BinaryOperator;
-import lasercompiler.parser.nodes.ExpressionConditional;
-import lasercompiler.parser.nodes.ExpressionFunctionCall;
-import lasercompiler.parser.nodes.ExpressionConstantInteger;
-import lasercompiler.parser.nodes.ExpressionPostfixOperation;
-import lasercompiler.parser.nodes.ExpressionPrefixOperation;
-import lasercompiler.parser.nodes.ExpressionUnaryOperation;
-import lasercompiler.parser.nodes.ExpressionVariable;
-import lasercompiler.parser.nodes.Function;
-import lasercompiler.parser.nodes.Program;
-import lasercompiler.parser.nodes.Statement;
-import lasercompiler.parser.nodes.StatementBreak;
-import lasercompiler.parser.nodes.StatementCompound;
-import lasercompiler.parser.nodes.StatementContinue;
-import lasercompiler.parser.nodes.StatementDo;
-import lasercompiler.parser.nodes.StatementExpression;
-import lasercompiler.parser.nodes.StatementFor;
-import lasercompiler.parser.nodes.StatementIf;
-import lasercompiler.parser.nodes.StatementReturn;
-import lasercompiler.parser.nodes.StatementWhile;
 
 public class CodeGeneratorLinux64 implements CodeGenerator {
 
@@ -54,22 +31,32 @@ public class CodeGeneratorLinux64 implements CodeGenerator {
 		List<Declaration> globalVars = prog.getGlobalVariables();
 
 		for(Declaration decl : globalVars) {
-			code.append(t(".globl "+decl.getVariable()));
+			code.append(t(".globl "+decl.getIdentifier()));
 			if(decl.hasInitializer()) {
 				code.append(t(".data"));
 				code.append(t(".align 4"));
-				code.append(decl.getVariable()+":\n");
+				code.append(decl.getIdentifier()).append(":\n");
+				if(!(decl instanceof DeclarationVariable)) {
+					throw new GenerationException("Array initializer not yet implemented");
+				}
 				Expression initializer = ConstExpressionEvaluator.evalExpression(decl.getInitializer());
 				if(!(initializer instanceof ExpressionConstantInteger)) {
-					throw new GenerationException("Failed to generate global variable("+decl.getVariable()+"), initial value must be constant");
+					throw new GenerationException("Failed to generate global variable("+decl.getIdentifier()+"), initial value must be constant");
 				}
 				ExpressionConstantInteger eci = (ExpressionConstantInteger) initializer;
 				code.append(t(".long "+eci.getValue()));
 			}else {
 				code.append(t(".bss"));
 				code.append(t(".align 4"));
-				code.append(decl.getVariable()+":\n");
-				code.append(t(".zero 4"));
+				code.append(decl.getIdentifier()).append(":\n");
+				if(decl instanceof DeclarationVariable) {
+					code.append(t(".zero 4"));
+				} else if(decl instanceof DeclarationArray) {
+					int bytes = ((DeclarationArray) decl).getSize() * 4;
+					code.append(t(".zero "+bytes));
+				} else {
+					throw new IllegalStateException();
+				}
 			}
 		}
 		
@@ -138,16 +125,23 @@ public class CodeGeneratorLinux64 implements CodeGenerator {
 		StringBuilder code = new StringBuilder();
 		for (BlockItem s : items) {
 			if(s instanceof Declaration) {
-				Declaration dec = (Declaration) s;
-//				if(contextData.getCurrentScopedVariables().contains(dec.getVariable())) {
-//					throw new GenerationException("Failed to generate variable declaration, illegal re-declaration of a variable("+dec.getVariable()+")");
-//				}
-				if(dec.hasInitializer()) {
-					code.append(generateExpression(dec.getInitializer(), contextData.subContext()));
+				if (s instanceof DeclarationVariable) {
+					DeclarationVariable dec = (DeclarationVariable) s;
+					if(dec.hasInitializer()) {
+						code.append(generateExpression(dec.getInitializer(), contextData.subContext()));
+					}
+					code.append(t("push rax")); // We will be pushing garbage if there is no initialization, but we need to make space for the variable.
+
+					contextData.addVariable(dec.getIdentifier());
+				} else if(s instanceof DeclarationArray) {
+					DeclarationArray dec = (DeclarationArray) s;
+					int bytes = dec.getSize() * 4;
+					code.append(t("sub rsp, "+bytes));
+
+					contextData.addArray(dec.getIdentifier(), dec.getSize());
+				} else {
+					throw new IllegalStateException();
 				}
-				code.append(t("push rax")); // We will be pushing garbage if there is no initialization, but we need to make space for the variable.
-				
-				contextData.addVariable(dec.getVariable());
 			}else if(s instanceof Statement){
 				code.append(generateStatement((Statement) s, contextData.subContext()));
 			}else {
@@ -280,15 +274,7 @@ public class CodeGeneratorLinux64 implements CodeGenerator {
 		} else if(exp instanceof ExpressionAssignment) {
 			ExpressionAssignment as = (ExpressionAssignment) exp;
 			code.append(generateExpression(as.getValue(), contextData));
-//			if(!contextData.hasVariable(as.getVariable())) {
-//				throw new GenerationException("Failed to generate variable assignment expression, illegal assignment to unknown variable("+as.getVariable()+")");
-//			}
-			
-			if(contextData.hasVariable(as.getVariable())) {
-				code.append(t("mov [rbp"+signedToString(contextData.getVariableOffset(as.getVariable()))+"], eax"));
-			}else {
-				code.append(t("mov "+as.getVariable()+"[rip], eax"));
-			}
+			code.append(generateLValueAssignment(as.getLValue(), contextData));
 		} else if(exp instanceof ExpressionConditional) {
 			String falseValueLabel = getUniqueLabel();
 			String endLabel = getUniqueLabel();
@@ -311,7 +297,7 @@ public class CodeGeneratorLinux64 implements CodeGenerator {
 				code.append(t("mov rax, rsp"));
 				code.append(t("sub rax, " + paddingBytes)); 
 				code.append(t("xor rdx, rdx"));
-				code.append(t("mov rcx, 0x10"));
+				code.append(t("mov rcx, 16"));
 				code.append(t("idiv rcx"));
 				code.append(t("sub rsp, rdx"));
 				code.append(t("push rdx"));
@@ -343,7 +329,7 @@ public class CodeGeneratorLinux64 implements CodeGenerator {
 			}
 			for(int i = 6; i < argsCount; i++) {
 				code.append(generateExpression(efc.getArguments().get(i), contextData));
-				code.append(t("push eax"));
+				code.append(t("push rax"));
 			}
 			code.append(t("call "+efc.getFunctionName()));
 			if(argsCount>6) {
@@ -374,19 +360,26 @@ public class CodeGeneratorLinux64 implements CodeGenerator {
 			}
 		} else if(exp instanceof ExpressionVariable) {
 			ExpressionVariable av = (ExpressionVariable) exp;
-//			if(!contextData.hasVariable(av.getVariable())) {
-//				throw new GenerationException("Failed to generate variable expression, illegal reference to unknown variable("+av.getVariable()+")");
-//			}
-			
-			if(contextData.hasVariable(av.getVariable())) {
-				code.append(t("mov eax, [rbp"+signedToString(contextData.getVariableOffset(av.getVariable()))+"]"));				
-			}else {
-				code.append(t("mov eax, "+av.getVariable()+"[rip]"));
+
+			if (contextData.hasVariable(av.getIdentifier())) {
+				code.append(t("mov eax, [rbp" + signedToString(contextData.getVariableOffset(av.getIdentifier())) + "]"));
+			} else {
+				code.append(t("mov eax, " + av.getIdentifier() + "[rip]"));
+			}
+		} else if(exp instanceof ExpressionArraySubscript) {
+			ExpressionArraySubscript eas = (ExpressionArraySubscript) exp;
+			code.append(generateExpression(eas.getIndex(), contextData));
+			if (contextData.hasVariable(eas.getIdentifier())) {
+				code.append(t("add rax, "+signedToString(contextData.getVariableOffset(eas.getIdentifier()))));
+				code.append(t("mov eax, [rbp+rax]"));
+			} else {
+				code.append(t("lea rbx, " + eas.getIdentifier() + "[rip]"));
+				code.append(t("mov eax, [rbx+rax]"));
 			}
 		} else if (exp instanceof ExpressionPrefixOperation) {
 			ExpressionPrefixOperation prefixOp = (ExpressionPrefixOperation) exp;
 			
-			code.append(generateExpression(prefixOp.getVariableExpression(), contextData));
+			code.append(generateExpression(prefixOp.getLValue(), contextData));
 			switch(prefixOp.getOperator()) {
 			case Decrement:
 				code.append(t("dec eax"));
@@ -398,15 +391,11 @@ public class CodeGeneratorLinux64 implements CodeGenerator {
 				throw new IllegalStateException();
 			}
 
-			if(contextData.hasVariable(prefixOp.getVariableExpression().getVariable())) {
-				code.append(t("mov [rbp"+signedToString(contextData.getVariableOffset(prefixOp.getVariableExpression().getVariable()))+"], eax"));
-			}else {
-				code.append(t("mov "+prefixOp.getVariableExpression()+"[rip], eax"));
-			}
+			code.append(generateLValueAssignment(prefixOp.getLValue(), contextData));
 		} else if (exp instanceof ExpressionPostfixOperation) {
 			ExpressionPostfixOperation postfixOp = (ExpressionPostfixOperation) exp;
 			
-			code.append(generateExpression(postfixOp.getVariableExpression(), contextData));
+			code.append(generateExpression(postfixOp.getLValue(), contextData));
 			switch(postfixOp.getOperator()) {
 			case Decrement:
 				code.append(t("dec eax"));
@@ -418,11 +407,8 @@ public class CodeGeneratorLinux64 implements CodeGenerator {
 				throw new IllegalStateException();
 			}
 
-			if(contextData.hasVariable(postfixOp.getVariableExpression().getVariable())) {
-				code.append(t("mov [rbp"+signedToString(contextData.getVariableOffset(postfixOp.getVariableExpression().getVariable()))+"], eax"));
-			}else {
-				code.append(t("mov "+postfixOp.getVariableExpression().getVariable()+"[rip], eax"));
-			}
+			code.append(generateLValueAssignment(postfixOp.getLValue(), contextData));
+
 			switch(postfixOp.getOperator()) {
 			case Decrement:
 				code.append(t("inc eax"));
@@ -548,6 +534,33 @@ public class CodeGeneratorLinux64 implements CodeGenerator {
 		} else {
 			throw new IllegalStateException();
 		}
+		return code.toString();
+	}
+
+	private String generateLValueAssignment(ExpressionLValue exp, GenerationContext contextData) {
+		StringBuilder code = new StringBuilder();
+		if(exp instanceof ExpressionVariable) {
+			if (contextData.hasVariable(exp.getIdentifier())) {
+				code.append(t("mov [rbp" + signedToString(contextData.getVariableOffset(exp.getIdentifier())) + "], eax"));
+			} else {
+				code.append(t("mov " + exp.getIdentifier() + "[rip], eax"));
+			}
+		} else if(exp instanceof ExpressionArraySubscript) {
+			code.append(t("push rax"));
+			ExpressionArraySubscript eas = (ExpressionArraySubscript) exp;
+			code.append(generateExpression(eas.getIndex(), contextData));
+			code.append(t("pop rbx"));
+			if (contextData.hasVariable(exp.getIdentifier())) {
+				code.append(t("add rax, " + signedToString(contextData.getVariableOffset(exp.getIdentifier()))));
+				code.append(t("mov [rbp+rax], ebx"));
+			} else {
+				code.append(t("lea rcx, " + exp.getIdentifier() + "[rip]"));
+				code.append(t("mov [rcx+rax], ebx"));
+			}
+		} else {
+			throw new IllegalStateException();
+		}
+
 		return code.toString();
 	}
 

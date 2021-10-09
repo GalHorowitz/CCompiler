@@ -23,9 +23,10 @@ public class GenerationContextLinux64 extends GenerationContext {
 	}
 		
 	@Override
-	public int pushStackIndex() {
-		stackIndex -= 8;
-		return stackIndex + 8;
+	public int pushStackIndex(int count) {
+		int curStack = stackIndex;
+		stackIndex -= 8 * count;
+		return curStack;
 	}
 
 }

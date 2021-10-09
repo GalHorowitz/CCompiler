@@ -1,6 +1,6 @@
 package lasercompiler.parser.nodes;
 
-public class ExpressionVariable extends Expression {
+public class ExpressionVariable extends ExpressionLValue {
 
 	private final String variable;
 	
@@ -8,7 +8,7 @@ public class ExpressionVariable extends Expression {
 		this.variable = variable;
 	}
 	
-	public String getVariable() {
+	public String getIdentifier() {
 		return variable;
 	}
 	

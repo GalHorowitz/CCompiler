@@ -39,13 +39,13 @@ public abstract class GenerationContext {
 //		return stackIndex + elementSize;
 //	}
 	/**
-	 * 'Push' a value onto the stack (update stackIndex)
+	 * 'Push' a value of size `count` onto the stack (update stackIndex)
 	 * @return the stack index of the new value
 	 */
-	public abstract int pushStackIndex();
+	public abstract int pushStackIndex(int count);
 
 	public void addVariable(String var) {
-		addVariable(var, pushStackIndex());
+		addVariable(var, pushStackIndex(1));
 	}
 
 	public void addVariable(String var, int offset) {
@@ -58,6 +58,11 @@ public abstract class GenerationContext {
 		if(!dontClear) numVariablesToClear++;
 	}
 
+	public void addArray(String arr, int size) {
+		variableMap.put(arr, pushStackIndex(size));
+		numVariablesToClear += size;
+	}
+
 	public int getVariableOffset(String var) {
 		return variableMap.get(var);
 	}
@@ -65,7 +70,7 @@ public abstract class GenerationContext {
 	public boolean hasVariable(String var) {
 		return variableMap.containsKey(var);
 	}
-	
+
 	public void setBreakLabel(String breakLabel) {
 		this.breakLabel = breakLabel;
 	}

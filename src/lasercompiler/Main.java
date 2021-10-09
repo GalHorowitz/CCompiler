@@ -7,14 +7,14 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
 
 import lasercompiler.codegen.CodeGenerator;
 import lasercompiler.codegen.GenerationException;
 import lasercompiler.codegen.laserlang.CodeGeneratorLaserLang;
+import lasercompiler.codegen.linux64.CodeGeneratorLinux64;
 import lasercompiler.lexer.LexException;
 import lasercompiler.lexer.Lexer;
-import lasercompiler.lexer.tokens.Token;
+import lasercompiler.lexer.tokens.TokenStream;
 import lasercompiler.parser.ParseException;
 import lasercompiler.parser.Parser;
 import lasercompiler.parser.nodes.Program;
@@ -28,7 +28,7 @@ public class Main {
 			System.exit(1);
 		}
 		boolean printDebugMessages = args.length == 2;
-		boolean laser = true;
+		boolean laser = false;
 
 		Path sourcePath = FileSystems.getDefault().getPath(args[0]);
 		if (!sourcePath.toFile().exists()) {
@@ -37,7 +37,7 @@ public class Main {
 		}
 
 		String source = new String(Files.readAllBytes(sourcePath));
-		List<Token> tokens = Lexer.lex(source);
+		TokenStream tokens = Lexer.lex(source);
 		if (printDebugMessages) {
 			System.out.print("Tokens: ");
 			System.out.println(tokens);
@@ -51,7 +51,12 @@ public class Main {
 			System.out.print("\n");
 		}
 
-		CodeGenerator codeGen = new CodeGeneratorLaserLang();
+		CodeGenerator codeGen;
+		if (laser) {
+			 codeGen = new CodeGeneratorLaserLang();
+		} else {
+			codeGen = new CodeGeneratorLinux64();
+		}
 		
 		String code = codeGen.generate(prog);
 

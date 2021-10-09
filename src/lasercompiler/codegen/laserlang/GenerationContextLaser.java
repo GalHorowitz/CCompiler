@@ -23,8 +23,10 @@ public class GenerationContextLaser extends GenerationContext {
 	}
 	
 	@Override
-	public int pushStackIndex() {
-		return stackIndex++;
+	public int pushStackIndex(int count) {
+		int curStack = stackIndex;
+		stackIndex += count;
+		return curStack;
 	}
 
 }

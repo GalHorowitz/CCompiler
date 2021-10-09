@@ -11,25 +11,25 @@ public class ExpressionPrefixOperation extends Expression {
 		}
 	}
 
-	private final ExpressionVariable variable;
+	private final ExpressionLValue lvalue;
 	private final PrefixOperator operator;
 
-	public ExpressionPrefixOperation(PrefixOperator operator, ExpressionVariable variable) {
+	public ExpressionPrefixOperation(PrefixOperator operator, ExpressionLValue lvalue) {
 		this.operator = operator;
-		this.variable = variable;
+		this.lvalue = lvalue;
 	}
 
 	public PrefixOperator getOperator() {
 		return operator;
 	}
 
-	public ExpressionVariable getVariableExpression() {
-		return variable;
+	public ExpressionLValue getLValue() {
+		return lvalue;
 	}
 
 	@Override
 	public String toString() {
-		return operator.op + "(" + variable.toString() + ")";
+		return operator.op + "(" + lvalue.toString() + ")";
 	}
 
 }

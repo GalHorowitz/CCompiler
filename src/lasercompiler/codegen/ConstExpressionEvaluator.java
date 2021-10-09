@@ -3,23 +3,21 @@ package lasercompiler.codegen;
 import java.util.ArrayList;
 import java.util.List;
 
-import lasercompiler.parser.nodes.Expression;
-import lasercompiler.parser.nodes.ExpressionAssignment;
-import lasercompiler.parser.nodes.ExpressionBinaryOperation;
-import lasercompiler.parser.nodes.ExpressionConditional;
-import lasercompiler.parser.nodes.ExpressionConstantInteger;
-import lasercompiler.parser.nodes.ExpressionFunctionCall;
-import lasercompiler.parser.nodes.ExpressionPostfixOperation;
-import lasercompiler.parser.nodes.ExpressionPrefixOperation;
-import lasercompiler.parser.nodes.ExpressionUnaryOperation;
-import lasercompiler.parser.nodes.ExpressionVariable;
+import lasercompiler.parser.nodes.*;
 
 public class ConstExpressionEvaluator {
 
 	public static Expression evalExpression(Expression exp) {
 		if (exp instanceof ExpressionAssignment) {
-			return new ExpressionAssignment(((ExpressionAssignment) exp).getVariable(),
-					evalExpression(((ExpressionAssignment) exp).getValue()));
+			ExpressionAssignment ea = (ExpressionAssignment) exp;
+			if(ea.getLValue() instanceof ExpressionArraySubscript) {
+				ExpressionArraySubscript eas = (ExpressionArraySubscript) ea.getLValue();
+				return new ExpressionAssignment(
+						new ExpressionArraySubscript(eas.getIdentifier(), evalExpression(eas.getIndex())),
+						evalExpression(ea.getValue()));
+			} else {
+				return new ExpressionAssignment(ea.getLValue(), evalExpression(ea.getValue()));
+			}
 		} else if (exp instanceof ExpressionBinaryOperation) {
 			ExpressionBinaryOperation newExp = new ExpressionBinaryOperation(
 					((ExpressionBinaryOperation) exp).getOperator(),

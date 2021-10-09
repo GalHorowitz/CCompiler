@@ -2,16 +2,16 @@ package lasercompiler.parser.nodes;
 
 public class ExpressionAssignment extends Expression {
 
-	private final String variable;
+	private final ExpressionLValue lvalue;
 	private final Expression value;
 	
-	public ExpressionAssignment(String variable, Expression value) {
-		this.variable = variable;
+	public ExpressionAssignment(ExpressionLValue lvalue, Expression value) {
+		this.lvalue = lvalue;
 		this.value = value;
 	}
 	
-	public String getVariable() {
-		return variable;
+	public ExpressionLValue getLValue() {
+		return lvalue;
 	}
 	
 	public Expression getValue() {
@@ -20,7 +20,7 @@ public class ExpressionAssignment extends Expression {
 	
 	@Override
 	public String toString() {
-		return variable + " = " + value.toString();
+		return lvalue + " = " + value.toString();
 	}
 
 }

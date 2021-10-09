@@ -6,30 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import lasercompiler.parser.ParseException;
-import lasercompiler.parser.nodes.BlockItem;
-import lasercompiler.parser.nodes.Declaration;
-import lasercompiler.parser.nodes.Expression;
-import lasercompiler.parser.nodes.ExpressionAssignment;
-import lasercompiler.parser.nodes.ExpressionBinaryOperation;
-import lasercompiler.parser.nodes.ExpressionConditional;
-import lasercompiler.parser.nodes.ExpressionFunctionCall;
-import lasercompiler.parser.nodes.ExpressionConstantInteger;
-import lasercompiler.parser.nodes.ExpressionPostfixOperation;
-import lasercompiler.parser.nodes.ExpressionPrefixOperation;
-import lasercompiler.parser.nodes.ExpressionUnaryOperation;
-import lasercompiler.parser.nodes.ExpressionVariable;
-import lasercompiler.parser.nodes.Function;
-import lasercompiler.parser.nodes.Program;
-import lasercompiler.parser.nodes.Statement;
-import lasercompiler.parser.nodes.StatementBreak;
-import lasercompiler.parser.nodes.StatementCompound;
-import lasercompiler.parser.nodes.StatementContinue;
-import lasercompiler.parser.nodes.StatementDo;
-import lasercompiler.parser.nodes.StatementExpression;
-import lasercompiler.parser.nodes.StatementFor;
-import lasercompiler.parser.nodes.StatementIf;
-import lasercompiler.parser.nodes.StatementReturn;
-import lasercompiler.parser.nodes.StatementWhile;
+import lasercompiler.parser.nodes.*;
 
 public class Validator {
 
@@ -60,27 +37,33 @@ public class Validator {
 		Map<String, Declaration> globalVars = new HashMap<String, Declaration>();
 		
 		for(Declaration globalVarDecl : globalVariablesDecl) {
-			if(functions.containsKey(globalVarDecl.getVariable())) {
+			if(functions.containsKey(globalVarDecl.getIdentifier())) {
 				throw new ParseException("Failed to parse program, illegal re-definition of function entity as global variable");
 			}
 			
 			if(globalVarDecl.hasInitializer()) {
-				if(globalVars.containsKey(globalVarDecl.getVariable())) {
-					if(globalVars.get(globalVarDecl.getVariable()).hasInitializer()) {
-						throw new ParseException("Failed to parse program, illegal re-definition of global variable("+globalVarDecl.getVariable()+")");
+				if(globalVars.containsKey(globalVarDecl.getIdentifier())) {
+					if(globalVars.get(globalVarDecl.getIdentifier()).hasInitializer()) {
+						throw new ParseException("Failed to parse program, illegal re-definition of global variable("+globalVarDecl.getIdentifier()+")");
 					}
 				}
-				globalVars.put(globalVarDecl.getVariable(), globalVarDecl);
+				globalVars.put(globalVarDecl.getIdentifier(), globalVarDecl);
 			}else {
-				if(!globalVars.containsKey(globalVarDecl.getVariable())) {
-					globalVars.put(globalVarDecl.getVariable(), globalVarDecl);
+				if(!globalVars.containsKey(globalVarDecl.getIdentifier())) {
+					globalVars.put(globalVarDecl.getIdentifier(), globalVarDecl);
 				}
 			}
 		}
 		
 		ValidationContext programContext = new ValidationContext(functions, new ArrayList<String>(globalVars.keySet()));
 		for(Declaration gvar : globalVariablesDecl) {
-			programContext.addVariable(gvar.getVariable());
+			if(gvar instanceof DeclarationVariable) {
+				programContext.addVariable(gvar.getIdentifier());
+			} else if(gvar instanceof DeclarationArray) {
+				programContext.addArray((gvar.getIdentifier()));
+			} else {
+				throw new IllegalStateException();
+			}
 		}
 		
 		for(Function func : functions.values()) {
@@ -104,10 +87,16 @@ public class Validator {
 	private static void traverseBlockItem(BlockItem item, ValidationContext context) throws ParseException {
 		if(item instanceof Declaration) {
 			Declaration d = (Declaration) item;
-			if(!context.canDeclareVariable(d.getVariable())) {
-				throw new ParseException("Failed to validate variable declaration, illegal re-declaration of a variable("+d.getVariable()+")");
+			if(!context.canDeclareVariable(d.getIdentifier())) {
+				throw new ParseException("Failed to validate variable declaration, illegal re-declaration of a variable("+d.getIdentifier()+")");
 			}
-			context.addVariable(d.getVariable());
+			if(d instanceof DeclarationVariable) {
+				context.addVariable(d.getIdentifier());
+			} else if(d instanceof DeclarationArray) {
+				context.addArray(d.getIdentifier());
+			} else {
+				throw new IllegalStateException();
+			}
 			if(d.hasInitializer()) {
 				traverseExpression(d.getInitializer(), context);
 			}
@@ -187,8 +176,16 @@ public class Validator {
 			}
 		}else if(exp instanceof ExpressionAssignment) {
 			ExpressionAssignment ea = (ExpressionAssignment) exp;
-			if(!context.hasVariable(ea.getVariable())) {
-				throw new ParseException("Failed to validate variable assignment, illegal assignment to unknown variable("+ea.getVariable()+")");
+			if (ea.getLValue() instanceof ExpressionVariable) {
+				if (!context.hasVariable(ea.getLValue().getIdentifier())) {
+					throw new ParseException("Failed to validate variable assignment, illegal assignment to unknown variable(" + ea.getLValue().getIdentifier() + ")");
+				}
+			} else if(ea.getLValue() instanceof ExpressionArraySubscript) {
+				if (!context.hasArray(ea.getLValue().getIdentifier())) {
+					throw new ParseException("Failed to validate variable assignment, illegal assignment to unknown array(" + ea.getLValue().getIdentifier() + ")");
+				}
+			} else {
+				throw new IllegalStateException();
 			}
 			traverseExpression(ea.getValue(), context);
 		}else if(exp instanceof ExpressionBinaryOperation) {
@@ -201,15 +198,20 @@ public class Validator {
 		}else if(exp instanceof ExpressionConstantInteger) {
 			//
 		}else if(exp instanceof ExpressionPostfixOperation) {
-			traverseExpression(((ExpressionPostfixOperation) exp).getVariableExpression(), context);
+			traverseExpression(((ExpressionPostfixOperation) exp).getLValue(), context);
 		}else if(exp instanceof ExpressionPrefixOperation) {
-			traverseExpression(((ExpressionPrefixOperation) exp).getVariableExpression(), context);
+			traverseExpression(((ExpressionPrefixOperation) exp).getLValue(), context);
 		}else if(exp instanceof ExpressionUnaryOperation) {
 			traverseExpression(((ExpressionUnaryOperation) exp).getExpression(), context);
 		}else if(exp instanceof ExpressionVariable) {
 			ExpressionVariable ev = (ExpressionVariable) exp;
-			if(!context.hasVariable(ev.getVariable())) {
-				throw new ParseException("Failed to validate variable reference, illegal reference to unknown variable("+ev.getVariable()+")");
+			if(!context.hasVariable(ev.getIdentifier())) {
+				throw new ParseException("Failed to validate variable reference, illegal reference to unknown variable("+ev.getIdentifier()+")");
+			}
+		}else if(exp instanceof ExpressionArraySubscript) {
+			ExpressionArraySubscript eas = (ExpressionArraySubscript) exp;
+			if(!context.hasArray(eas.getIdentifier())) {
+				throw new ParseException("Failed to validate variable reference, illegal reference to unknown array variable("+eas.getIdentifier()+")");
 			}
 		}else {
 			throw new IllegalStateException();

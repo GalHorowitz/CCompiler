@@ -4,6 +4,6 @@ import lasercompiler.parser.nodes.Program;
 
 public interface CodeGenerator {
 
-	public String generate(Program prog) throws GenerationException;
+	String generate(Program prog) throws GenerationException;
 	
 }
